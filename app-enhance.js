@@ -1,0 +1,103 @@
+(()=>{
+  const q=window.__qiancheng;
+  if(!q)return;
+  const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],st=q.state;
+  const presets={
+    career:{label:'城市就业',hint:'比较收入、房租与目标支出的长期现金流',prompt:'毕业后去深圳月薪12000，还是留昆明月薪7000？深圳房租2800，我明年想去日本旅行，预算12000元。',a:{city:'深圳',salary:12000,rent:2800,delay:6,volatility:.14},b:{city:'昆明',salary:7000,rent:1800,delay:6,volatility:.14}},
+    education:{label:'考研深造',hint:'把学习投入、延迟就业和毕业后的成长放进同一张路线图',prompt:'我想考研两年，前期接受收入下降，但希望毕业后有更好的发展，预算18000元。',a:{city:'本地就业',salary:5200,rent:1200,delay:6,volatility:.12},b:{city:'继续深造',salary:12500,rent:1500,delay:18,preIncome:700,study:true,oneOff:18000,volatility:.18}},
+    entrepreneur:{label:'创业试水',hint:'比较稳定就业与低成本创业，先看现金缓冲能否撑住试错',prompt:'我想创业试水，前期投入25000元，希望保留就业保底并观察五年现金流。',a:{city:'稳定就业',salary:10500,rent:2200,delay:6,volatility:.13},b:{city:'创业试水',salary:8500,rent:1900,delay:6,oneOff:25000,incomeFloor:2500,volatility:.30,riskPremium:.004}},
+    freelance:{label:'自由职业',hint:'比较稳定工作与远程接单，关注弹性、波动和最低现金安全线',prompt:'我更想做自由职业，收入可以波动，但希望保留生活弹性和至少一年的安全垫。',a:{city:'稳定就业',salary:9800,rent:2300,delay:6,volatility:.12},b:{city:'远程自由职业',salary:9000,rent:1500,delay:6,incomeFloor:5200,volatility:.24,riskPremium:.002}},
+    family:{label:'回家发展',hint:'把家庭支持、生活成本和职业机会放在同一个可解释比较里',prompt:'我想回家乡发展，照顾父母，同时比较大城市机会与家庭支持对未来资金的影响。',a:{city:'深圳机会',salary:12000,rent:2800,delay:6,volatility:.15},b:{city:'家乡发展',salary:6500,rent:1000,delay:6,familySupport:6000,monthlySupport:500,volatility:.12}}
+  };
+  let direction='career';
+  const clone=x=>({...x});
+  const money=n=>'¥'+Math.round(n).toLocaleString('zh-CN');
+  function intent(text){
+    const t=text||'';
+    const goals=[];
+    if(/考研|深造|读研|学习|学历/.test(t))goals.push('成长与学习');
+    if(/创业|开店|试水|项目/.test(t))goals.push('自主发展');
+    if(/自由职业|远程|接单|弹性/.test(t))goals.push('时间弹性');
+    if(/回家|家乡|父母|照顾/.test(t))goals.push('家庭责任');
+    if(/高薪|收入|发展|机会|深圳|大城市/.test(t))goals.push('收入成长');
+    if(!goals.length)goals.push(presets[direction].label);
+    const constraints=[];
+    if(/旅行|旅游|预算/.test(t))constraints.push('阶段性目标');
+    if(/电脑|笔记本/.test(t))constraints.push('大额购置');
+    if(/失业|待业|找工作|安全垫|缓冲/.test(t))constraints.push('现金安全垫');
+    if(/父母|照顾/.test(t))constraints.push('家庭支持');
+    if(/投入|成本|预算|学费/.test(t))constraints.push('前置投入');
+    const risk=/稳定|保守|不想冒险|安全/.test(t)?'偏稳健':/冒险|创业|挑战|波动/.test(t)?'可承受波动':'中等风险承受';
+    const summary=`你当前更关注「${goals.slice(0,2).join(' + ')}」，${constraints.length?`同时受「${constraints.slice(0,2).join('、')}」约束。`:''}系统将按${risk}生成两条可解释路线；金额由模拟引擎计算，画像只用于组织比较，不替你做决定。`;
+    return{goals,constraints,risk,summary};
+  }
+  function renderIntent(){
+    const x=intent($('#scenarioText').value),tags=[...x.goals,...x.constraints, x.risk];
+    const tag=$('#intentTags');if(tag)tag.innerHTML=tags.map(v=>`<span>${v}</span>`).join('');
+    const copy=$('#intentText');if(copy)copy.textContent=x.summary;
+    const badge=$('#directionHint');if(badge)badge.textContent=presets[direction].hint;
+    const title=$('#directionTitle');if(title)title.textContent=presets[direction].label;
+  }
+  function setLabels(){
+    const p=presets[direction],a=st.a,b=st.b;
+    $('#cityAName').textContent=a.city;$('#cityBName').textContent=b.city;
+    $('#cityASalary').textContent=a.delay>6?`第${a.delay}月后 · 月薪 ${money(a.salary)}`:`月薪 ${money(a.salary)}`;
+    $('#cityBSalary').textContent=b.delay>6?`第${b.delay}月后 · 月薪 ${money(b.salary)}`:`月薪 ${money(b.salary)}`;
+    const la=$('.legend .a'),lb=$('.legend .b');if(la&&la.nextSibling)la.nextSibling.textContent=a.city+' ';if(lb&&lb.nextSibling)lb.nextSibling.textContent=b.city+' ';
+    const fa=$('[data-focus="a"]'),fb=$('[data-focus="b"]');if(fa)fa.textContent=a.city+'路线';if(fb)fb.textContent=b.city+'路线';
+    const title=$('.journey .title h2');if(title)title.innerHTML=`${p.label}，<br>不止一条曲线。`;
+    const sub=$('.journey .title>p');if(sub)sub.textContent='点击节点查看资金中位数、事件和风险来源。切换方向或修改条件后，整条路线会重新计算。';
+    const summary=$$('.summary>div span');if(summary[0])summary[0].textContent=a.city+'资金中位数';if(summary[1])summary[1].textContent=b.city+'资金中位数';
+    const goalSmall=$('.goal small');if(goalSmall)goalSmall.textContent=`第18月 · ${money(st.goal)}`;
+  }
+  function enhancedSim(route){
+    const months=+$('#horizon').value,g=+$('#salaryGrowth').value/100,eg=+$('#expenseGrowth').value/100,risk=+$('#shockLevel').value,start=+$('#savings').value||0,baseIncome=+$('#baseIncome').value||0,expense=+$('#baseExpense').value||0,paths=[],hits=[];
+    for(let r=0;r<1000;r++){
+      let cash=start,series=[],hit=false;
+      for(let m=1;m<=months;m++){
+        const employed=m>route.delay;
+        let income=employed?route.salary:route.preIncome!==undefined?route.preIncome:baseIncome;
+        if(route.study&&!employed)income=Math.max(0,baseIncome*.35+route.preIncome||0);
+        const vol=route.volatility||.14;
+        income*=Math.pow(1+g,Math.max(0,m-route.delay)/12)*(1+(q.state.result&&q.state.result._seed?0:Math.sin(r*191+m)*vol*.5));
+        if(st.unemployed&&m>=24&&m<30&&Math.sin(r*37+m)>.04)income*=.12;
+        const housing=route.rent*(employed?1:(route.study?.72:1)),extra=route.monthlyExtra||0;
+        let spend=(expense+housing+extra)*Math.pow(1+eg,m/12)*(1+Math.sin(r*97+m)*.09);
+        const shock=Math.sin(r*131+m)>(.988-risk*.006-route.riskPremium||0)?1200+Math.abs(Math.sin(r*71+m))*risk*900:0;
+        const goals=(m===18?st.goal:0)+(m===12?st.computer:0)+(m===1?(route.oneOff||0):0);
+        const support=(m===1?(route.familySupport||0):0)+(route.monthlySupport||0);
+        cash+=income-spend-shock-goals+support; if(m===18&&cash>=0)hit=true; series.push(cash);
+      }
+      paths.push(series);hits.push(hit);
+    }
+    const p10=[],p50=[],p90=[];for(let m=0;m<months;m++){const v=paths.map(p=>p[m]).sort((a,b)=>a-b);p10.push(v[99]);p50.push(v[499]);p90.push(v[899])}
+    return{p10,p50,p90,goal:hits.filter(Boolean).length/10,negative:paths.filter(p=>p.some(v=>v<0)).length};
+  }
+  function updateInsight(){
+    const a=st.result.a,b=st.result.b,e=st.months-1,x=intent($('#scenarioText').value),best=a.p50[e]>=b.p50[e]?st.a:st.b,diff=Math.abs(a.p50[e]-b.p50[e]);
+    $('#insightText').textContent=`需求画像显示：${x.goals.slice(0,2).join(' + ')}，${x.risk}。在${presets[direction].label}下，${best.city}路线的期末资金中位数更高 ${money(diff)}；但这只是五年情景，不代表确定结果，建议同时看P10安全线。`;
+    $('#factorList').innerHTML=`<div class="factor"><span>方向画像</span><b>${presets[direction].label} · ${x.risk}</b></div><div class="factor"><span>路线A / B</span><b>${st.a.city} / ${st.b.city}</b></div><div class="factor"><span>前置投入</span><b>${money(st.b.oneOff||st.a.oneOff||0)}</b></div><div class="factor"><span>负现金流路径</span><b>${a.negative} / 1,000</b></div>`;
+  }
+  function enhancedRun(show){
+    const before={goal:st.goal,computer:st.computer,unemployed:st.unemployed};
+    q.parse();st.months=+$('#horizon').value;
+    if(direction==='career'){st.a={...presets.career.a,...st.a};st.b={...presets.career.b,...st.b}}
+    else{st.goal=before.goal;st.a=clone(presets[direction].a);st.b=clone(presets[direction].b)}
+    st.result={a:enhancedSim(st.a),b:enhancedSim(st.b)};setLabels();q.timeline();q.chart();q.insight();setLabels();updateInsight();renderIntent();
+    $$('.node').forEach(n=>{const route=n.closest('.route')?.dataset.route,r=route&&st[route];if(r&&r.delay>6&&n.querySelector('span')?.textContent==='进入职场')n.querySelector('span').textContent=`第${r.delay}月上岗`});
+    if(show&&window.toast)toast('已按当前方向重新生成 1,000 条路径');
+  }
+  function inject(){
+    const chips=$('.chips');
+    if(chips&&!$('#directionBar')){
+      chips.insertAdjacentHTML('afterend',`<div class="direction-bar" id="directionBar"><div class="direction-copy"><small>选择人生方向</small><strong id="directionTitle">城市就业</strong><span id="directionHint"></span></div><div class="direction-options">${Object.entries(presets).map(([k,v])=>`<button data-direction="${k}" class="${k==='career'?'active':''}">${v.label}</button>`).join('')}</div></div><div class="intent-card" id="intentCard"><div class="intent-head"><span>SMART PROFILE</span><b>智能需求画像</b><em>本地规则解析</em></div><div id="intentTags"></div><p id="intentText"></p></div>`);
+      $$('[data-direction]').forEach(btn=>btn.addEventListener('click',()=>{direction=btn.dataset.direction;$$('[data-direction]').forEach(x=>x.classList.toggle('active',x===btn));const p=presets[direction];$('#scenarioText').value=p.prompt;st.direction=direction;enhancedRun(true);$('#journey').scrollIntoView({behavior:'smooth',block:'start'})}));
+      $('#scenarioText').addEventListener('input',()=>{renderIntent();clearTimeout(window.__intentTimer);window.__intentTimer=setTimeout(()=>enhancedRun(false),260)});
+      $('#runSimulation').addEventListener('click',()=>setTimeout(()=>enhancedRun(false),0));
+      ['savings','baseIncome','baseExpense','horizon','salaryGrowth','expenseGrowth','shockLevel'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('change',()=>setTimeout(()=>enhancedRun(false),0))});
+    }
+    renderIntent();
+  }
+  inject();
+  setTimeout(()=>enhancedRun(false),40);
+})();
