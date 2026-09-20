@@ -105,5 +105,6 @@
   const prepareReveal=()=>{const items=$$('.journey-board,.details .card,.evidence .stats article,.trust-grid article');if(!items.length)return;items.forEach(x=>x.classList.add('reveal-item'));if(!('IntersectionObserver' in window)){items.forEach(x=>x.classList.add('reveal-in'));return}const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('reveal-in');observer.unobserve(entry.target)}}),{threshold:.12});items.forEach(x=>observer.observe(x))};
   q.enhancedRun=enhancedRun;
   const lab=document.createElement('script');lab.src='asset-lab.js';document.body.appendChild(lab);
+  const premium=document.createElement('script');premium.src='premium-motion.js';document.body.appendChild(premium);
   setTimeout(()=>{enhancedRun(false);prepareReveal()},40);
 })();
