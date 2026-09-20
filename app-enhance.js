@@ -12,6 +12,8 @@
   let direction='career';
   const clone=x=>({...x});
   const money=n=>'¥'+Math.round(n).toLocaleString('zh-CN');
+  function guessDirection(text){if(/考研|深造|读研|学历|留学/.test(text))return'education';if(/创业|开店|试水|项目/.test(text))return'entrepreneur';if(/自由职业|远程|接单|弹性/.test(text))return'freelance';if(/回家|家乡|父母|照顾/.test(text))return'family';return null}
+  function customAmount(text){const m=(text||'').replace(/,/g,'').match(/(?:预算|投入|成本|金额|学费|目标)[^\d]{0,8}(\d{3,})/);return m?+m[1]:0}
   function intent(text){
     const t=text||'';
     const goals=[];
@@ -79,10 +81,10 @@
     const routeGoal=Math.max(st.a.goalCost||0,st.b.goalCost||0,st.goal||0);$('#factorList').innerHTML=`<div class="factor"><span>方向画像</span><b>${presets[direction].label} · ${x.risk}</b></div><div class="factor"><span>路线A / B</span><b>${st.a.city} / ${st.b.city}</b></div><div class="factor"><span>${st.goalLabel||'方向目标'}</span><b>${money(routeGoal)} · 第${st.goalMonth||18}月</b></div><div class="factor"><span>负现金流路径</span><b>${a.negative} / 1,000</b></div>`;
   }
   function enhancedRun(show){
-    const before={goal:st.goal,computer:st.computer,unemployed:st.unemployed};
+    const before={goal:st.goal,computer:st.computer,unemployed:st.unemployed},amount=customAmount($('#scenarioText').value);
     q.parse();st.months=+$('#horizon').value;
-    if(direction==='career'){st.goalLabel=presets.career.goalLabel;st.goal=before.goal;st.goalMonth=presets.career.goalMonth;st.a={...presets.career.a,...st.a};st.b={...presets.career.b,...st.b}}
-    else{const p=presets[direction];st.goalLabel=p.goalLabel;st.goal=p.goal;st.goalMonth=p.goalMonth;st.a=clone(p.a);st.b=clone(p.b)}
+    if(direction==='career'){st.goalLabel=presets.career.goalLabel;st.goal=amount&&/旅行|旅游|目标/.test($('#scenarioText').value)?amount:before.goal;st.goalMonth=presets.career.goalMonth;st.a={...presets.career.a,...st.a};st.b={...presets.career.b,...st.b}}
+    else{const p=presets[direction];st.goalLabel=p.goalLabel;st.goal=amount||p.goal;st.goalMonth=p.goalMonth;st.a=clone(p.a);st.b=clone(p.b);if(direction==='education'||direction==='entrepreneur'){st.a.goalCost=0;st.b.goalCost=amount||p.goal}}
     st.result={a:enhancedSim(st.a),b:enhancedSim(st.b)};setLabels();q.timeline();q.chart();q.insight();setLabels();updateInsight();renderIntent();window.dispatchEvent(new Event('qiancheng:updated'));
     $$('.node').forEach(n=>{const route=n.closest('.route')?.dataset.route,r=route&&st[route];if(r&&r.delay>6&&n.querySelector('span')?.textContent==='进入职场')n.querySelector('span').textContent=`第${r.delay}月上岗`});
     if(show&&window.toast)toast('已按当前方向重新生成 1,000 条路径');
@@ -92,7 +94,7 @@
     if(chips&&!$('#directionBar')){
       chips.insertAdjacentHTML('afterend',`<div class="direction-bar" id="directionBar"><div class="direction-copy"><small>选择人生方向</small><strong id="directionTitle">城市就业</strong><span id="directionHint"></span></div><div class="direction-options">${Object.entries(presets).map(([k,v])=>`<button data-direction="${k}" class="${k==='career'?'active':''}">${v.label}</button>`).join('')}</div></div><div class="intent-card" id="intentCard"><div class="intent-head"><span>SMART PROFILE</span><b>智能需求画像</b><em>本地规则解析</em></div><div id="intentTags"></div><p id="intentText"></p></div>`);
       $$('[data-direction]').forEach(btn=>btn.addEventListener('click',()=>{direction=btn.dataset.direction;$$('[data-direction]').forEach(x=>x.classList.toggle('active',x===btn));const p=presets[direction];$('#scenarioText').value=p.prompt;st.direction=direction;st.strategy=null;st.strategyManual=false;st.goalLabel=p.goalLabel;st.goal=p.goal;st.goalMonth=p.goalMonth;enhancedRun(true);$('#journey').scrollIntoView({behavior:'smooth',block:'start'})}));
-      $('#scenarioText').addEventListener('input',()=>{renderIntent();clearTimeout(window.__intentTimer);window.__intentTimer=setTimeout(()=>enhancedRun(false),260)});
+      $('#scenarioText').addEventListener('input',()=>{const inferred=guessDirection($('#scenarioText').value);if(inferred&&inferred!==direction){direction=inferred;$$('[data-direction]').forEach(x=>x.classList.toggle('active',x.dataset.direction===direction));const p=presets[direction];st.direction=direction;st.strategy=null;st.strategyManual=false;st.goalLabel=p.goalLabel;st.goal=p.goal;st.goalMonth=p.goalMonth}renderIntent();clearTimeout(window.__intentTimer);window.__intentTimer=setTimeout(()=>enhancedRun(false),260)});
       $('#runSimulation').addEventListener('click',()=>setTimeout(()=>enhancedRun(false),0));
       ['savings','baseIncome','baseExpense','horizon','salaryGrowth','expenseGrowth','shockLevel'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('change',()=>setTimeout(()=>enhancedRun(false),0))});
     }
