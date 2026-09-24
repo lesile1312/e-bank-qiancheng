@@ -9,6 +9,8 @@
   --pmu-press-scale: .96;
   --pmu-stagger: 46ms;
 }
+
+/* PMU pattern: spring-cascade. One short reveal sequence establishes hierarchy. */
 html.pmu-enabled .pmu-cascade-target {
   opacity: 0;
   transform: translate3d(0, 18px, 0);
@@ -16,15 +18,33 @@ html.pmu-enabled .pmu-cascade-target {
   transition-delay: calc(var(--pmu-order, 0) * var(--pmu-stagger));
 }
 html.pmu-enabled .pmu-cascade-target.pmu-in { opacity: 1; transform: none; }
+
+/* PMU pattern: press-feedback. Focus remains visible for keyboard users. */
 button, .strategy-option { -webkit-tap-highlight-color: transparent; }
-html.pmu-enabled button.pmu-press, html.pmu-enabled .strategy-option.pmu-press { transform: scale(var(--pmu-press-scale)) translateZ(0); filter: brightness(1.08); }
-html.pmu-enabled button:focus-visible, html.pmu-enabled .strategy-option:focus-visible { outline: 2px solid rgba(233, 194, 112, .86); outline-offset: 3px; }
+html.pmu-enabled button.pmu-press,
+html.pmu-enabled .strategy-option.pmu-press { transform: scale(var(--pmu-press-scale)) translateZ(0); filter: brightness(1.08); }
+html.pmu-enabled button:focus-visible,
+html.pmu-enabled .strategy-option:focus-visible { outline: 2px solid rgba(233, 194, 112, .86); outline-offset: 3px; }
+
+/* PMU pattern: glow-border. Sparse emphasis is reserved for the live decision. */
 html.pmu-enabled .strategy-option.active { box-shadow: 0 0 0 1px rgba(233, 194, 112, .22), 0 0 var(--pmu-glow-blur) rgba(233, 194, 112, var(--pmu-glow-alpha)); }
-html.pmu-enabled .allocation-decision, html.pmu-enabled .intent-card { border-color: rgba(103, 223, 183, .34); box-shadow: 0 0 0 1px rgba(103, 223, 183, .08), 0 0 22px rgba(103, 223, 183, .07); }
-html.pmu-enabled .summary strong, html.pmu-enabled .percentiles b, html.pmu-enabled .allocation-top strong, html.pmu-enabled .allocation-grid b, html.pmu-enabled #allocationDecisionTitle, html.pmu-enabled #allocationDecisionRoute { transition: color var(--pmu-duration-base) var(--pmu-ease-standard), opacity var(--pmu-duration-base) var(--pmu-ease-standard); }
+html.pmu-enabled .allocation-decision,
+html.pmu-enabled .intent-card { border-color: rgba(103, 223, 183, .34); box-shadow: 0 0 0 1px rgba(103, 223, 183, .08), 0 0 22px rgba(103, 223, 183, .07); }
+
+html.pmu-enabled .summary strong,
+html.pmu-enabled .percentiles b,
+html.pmu-enabled .allocation-top strong,
+html.pmu-enabled .allocation-grid b,
+html.pmu-enabled #allocationDecisionTitle,
+html.pmu-enabled #allocationDecisionRoute { transition: color var(--pmu-duration-base) var(--pmu-ease-standard), opacity var(--pmu-duration-base) var(--pmu-ease-standard); }
+
 @media (max-width: 580px) { :root { --pmu-glow-blur: 16px; } }
 @media (prefers-reduced-motion: reduce) {
-  html.pmu-enabled .pmu-cascade-target, html.pmu-enabled .pmu-cascade-target.pmu-in,
-  html.pmu-enabled button.pmu-press, html.pmu-enabled .strategy-option.pmu-press { opacity: 1; transform: none; transition: none; filter: none; }
-  html.pmu-enabled .strategy-option.active, html.pmu-enabled .allocation-decision, html.pmu-enabled .intent-card { box-shadow: none; }
+  html.pmu-enabled .pmu-cascade-target,
+  html.pmu-enabled .pmu-cascade-target.pmu-in,
+  html.pmu-enabled button.pmu-press,
+  html.pmu-enabled .strategy-option.pmu-press { opacity: 1; transform: none; transition: none; filter: none; }
+  html.pmu-enabled .strategy-option.active,
+  html.pmu-enabled .allocation-decision,
+  html.pmu-enabled .intent-card { box-shadow: none; }
 }
