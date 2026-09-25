@@ -2,6 +2,7 @@
   const q=window.__qiancheng;
   if(!q)return;
   const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],st=q.state;
+  const favicon=document.createElement('link');favicon.rel='icon';favicon.type='image/svg+xml';favicon.href='favicon.svg';document.head.appendChild(favicon);
   const presets={
     campus:{label:'校园生活',goalLabel:'日本旅行',goal:12000,goalMonth:6,hint:'比较先买电脑与延后购置，对旅行目标和现金安全的影响',prompt:'我是在校大学生，每月生活费3200元，日常开销2430元，现有存款12580元。想在第6个月去日本旅行，预算12000元；电脑预算9000元，现在买或第9个月再买。比较两种安排能否兼顾旅行目标与现金安全。',a:{city:'现在购置电脑',salary:0,rent:0,delay:60,preIncome:3200,volatility:.035,goalLabel:'电脑购置',goalMonth:1,goalCost:9000,includeSharedGoal:true},b:{city:'第9个月再购置',salary:0,rent:0,delay:60,preIncome:3200,volatility:.035,goalLabel:'电脑购置',goalMonth:9,goalCost:9000,includeSharedGoal:true}},
     career:{label:'城市就业',goalLabel:'日本旅行',goal:12000,goalMonth:18,hint:'比较收入、房租与目标支出的长期现金流',prompt:'毕业后去深圳月薪12000，还是留昆明月薪7000？深圳房租2800，我明年想去日本旅行，预算12000元。',a:{city:'深圳',salary:12000,rent:2800,delay:6,volatility:.14},b:{city:'昆明',salary:7000,rent:1800,delay:6,volatility:.14}},
