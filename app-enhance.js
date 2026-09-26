@@ -13,7 +13,8 @@
   };
   let direction='campus';
   const clone=x=>({...x});
-  const money=n=>'¥'+Math.round(n).toLocaleString('zh-CN');
+  const money=n=>{const value=Math.round(n||0);return `${value<0?'−':''}¥${Math.abs(value).toLocaleString('zh-CN')}`};
+  const signedMoney=n=>{const value=Math.round(n||0);return `${value<0?'−':''}¥${Math.abs(value).toLocaleString('zh-CN')}`};
   function guessDirection(text){if(/考研|深造|读研|学历|留学/.test(text))return'education';if(/在校|校园|大学生|生活费/.test(text))return'campus';if(/创业|开店|试水|项目/.test(text))return'entrepreneur';if(/自由职业|远程|接单|弹性/.test(text))return'freelance';if(/回家|家乡|父母|照顾/.test(text))return'family';return null}
   function customAmount(text){const m=(text||'').replace(/,/g,'').match(/(?:预算|投入|成本|金额|学费|目标)[^\d]{0,8}(\d{3,})/);return m?+m[1]:0}
   function intent(text){
@@ -32,8 +33,9 @@
     if(/失业|待业|找工作|安全垫|缓冲/.test(t))constraints.push('现金安全垫');
     if(/父母|照顾/.test(t))constraints.push('家庭支持');
     if(/投入|成本|预算|学费/.test(t))constraints.push('前置投入');
-    const risk=/稳定|保守|不想冒险|安全/.test(t)?'偏稳健':/冒险|创业|挑战|波动/.test(t)?'可承受波动':'中等风险承受';
-    const summary=`你当前更关注「${goals.slice(0,2).join(' + ')}」，${constraints.length?`同时受「${constraints.slice(0,2).join('、')}」约束。`:''}系统将按${risk}生成两条可解释路线；金额由模拟引擎计算，画像只用于组织比较，不替你做决定。`;
+    const risk=/稳定|保守|不想冒险|安全/.test(t)?'偏稳健':/冒险|创业|挑战|波动/.test(t)?'愿意承担较大波动':'风险偏好未填写';
+    const riskNote=risk==='风险偏好未填写'?'你还没有提到风险偏好。':`你更倾向${risk}。`;
+    const summary=`根据你的输入，主要关注${goals.slice(0,2).join('、')}。${constraints.length?`还要考虑${constraints.slice(0,2).join('和')}。`:''}${riskNote}两条路线按当前参数逐月计算，最后由你决定。`;
     return{goals,constraints,risk,summary};
   }
   function renderIntent(){
@@ -48,7 +50,7 @@
     $('#cityAName').textContent=a.city;$('#cityBName').textContent=b.city;
     $('#cityASalary').textContent=direction==='campus'?`每月生活费 ${money(+$('#baseIncome').value||0)} · 电脑第${a.goalMonth}月购置`:a.delay>6?`第${a.delay}月后 · 月薪 ${money(a.salary)}`:`月薪 ${money(a.salary)}`;
     $('#cityBSalary').textContent=direction==='campus'?`每月生活费 ${money(+$('#baseIncome').value||0)} · 电脑第${b.goalMonth}月购置`:b.delay>6?`第${b.delay}月后 · 月薪 ${money(b.salary)}`:`月薪 ${money(b.salary)}`;
-    const la=$('.legend .a'),lb=$('.legend .b');if(la&&la.nextSibling)la.nextSibling.textContent=a.city+' ';if(lb&&lb.nextSibling)lb.nextSibling.textContent=b.city+' ';
+    const legend=$('.legend');if(legend){legend.replaceChildren();[[a.city,'a'],[b.city,'b'],['人生目标','g']].forEach(([label,color])=>{const item=document.createElement('span'),dot=document.createElement('i');dot.className=color;item.append(dot,document.createTextNode(label));legend.append(item)})}
     const fa=$('[data-focus="a"]'),fb=$('[data-focus="b"]');if(fa)fa.textContent=a.city+'路线';if(fb)fb.textContent=b.city+'路线';
     const title=$('.journey .title h2');if(title)title.innerHTML=`${p.label}，<br>不止一条曲线。`;
     const sub=$('.journey .title>p');if(sub)sub.textContent='点击节点查看资金中位数、事件和风险来源。切换方向或修改条件后，整条路线会重新计算。';
@@ -58,38 +60,37 @@
     const spendLabel=$$('.fields label').find(x=>x.querySelector('#baseExpense'));if(spendLabel)spendLabel.firstChild.textContent=direction==='campus'?'每月日常开销':'基础生活支出';
     const horizon=+$('#horizon').value,period=$('.core-face span');if(period)period.textContent=`P50 · ${horizon} MONTHS`;
   }
-  function enhancedSim(route){
-    const months=+$('#horizon').value,g=+$('#salaryGrowth').value/100,eg=+$('#expenseGrowth').value/100,risk=+$('#shockLevel').value,start=+$('#savings').value||0,baseIncome=+$('#baseIncome').value||0,expense=+$('#baseExpense').value||0,paths=[],hits=[],policy=(q.allocationStrategies&&q.allocationStrategies[st.strategy])||{spendFactor:1,shockFactor:1};
-    for(let r=0;r<1000;r++){
-      let cash=start,series=[],hit=false;
-      for(let m=1;m<=months;m++){
-        const employed=m>route.delay;
-        let income=employed?Math.max(route.incomeFloor||0,route.salary):route.preIncome!==undefined?route.preIncome:baseIncome;
-        if(route.study&&!employed)income=Math.max(0,baseIncome*.35+route.preIncome||0);
-      const vol=route.volatility||.14;
-        income*=Math.pow(1+g,Math.max(0,m-route.delay)/12)*(1+(q.state.result&&q.state.result._seed?0:Math.sin(r*191+m)*vol*.5));
-        if(st.unemployed&&m>=24&&m<30&&Math.sin(r*37+m)>.04)income*=.12;
-        const housing=route.rent*(employed?1:(route.study?.72:1)),extra=route.monthlyExtra||0;
-        let spend=(expense+housing+extra)*policy.spendFactor*Math.pow(1+eg,m/12)*(1+Math.sin(r*97+m)*.09);
-        const shock=Math.sin(r*131+m)>(.988-risk*.006-(route.riskPremium||0))?(1200+Math.abs(Math.sin(r*71+m))*risk*900)*policy.shockFactor:0;
-        const hasRouteGoal=Object.prototype.hasOwnProperty.call(route,'goalCost'),routeGoal=hasRouteGoal&&m===(route.goalMonth||1)?(route.goalCost||0):0,sharedGoal=(!hasRouteGoal||route.includeSharedGoal)&&m===(st.goalMonth||18)?st.goal:0,goals=routeGoal+sharedGoal+(m===12?st.computer:0)+(m===1?(route.oneOff||0):0);
-        const support=(m===1?(route.familySupport||0):0)+(route.monthlySupport||0);
-        const cashBeforeGoals=cash+income-spend-shock+support;
-        if(m===(st.goalMonth||18)&&cashBeforeGoals>=(st.goal||0))hit=true;
-        cash=cashBeforeGoals-goals; series.push(cash);
-      }
-      paths.push(series);hits.push(hit);
-    }
-    const p10=[],p50=[],p90=[];for(let m=0;m<months;m++){const v=paths.map(p=>p[m]).sort((a,b)=>a-b);p10.push(v[99]);p50.push(v[499]);p90.push(v[899])}
-    return{p10,p50,p90,goal:hits.filter(Boolean).length/10,negative:paths.filter(p=>p.some(v=>v<0)).length};
+  function renderAttribution(metricName=st.attributionMetric||'target'){
+    const result=st.attribution;if(!result)return;
+    const targetButton=$('[data-attribution-metric="target"]'),targetAvailable=st.result.a.hasGoal||st.result.b.hasGoal;
+    if(targetButton){targetButton.hidden=!targetAvailable;targetButton.disabled=!targetAvailable}
+    const key=metricName==='target'&&targetAvailable?'target':'ending';st.attributionMetric=key;
+    const metric=result[key],rows=metric.contributions,max=Math.max(1,...rows.map(row=>Math.abs(row.value)));
+    $('#attributionMetricLabel').textContent=metric.label;
+    $('#attributionDelta').textContent=signedMoney(metric.delta);
+    $('#attributionDelta').dataset.sign=metric.delta<0?'negative':'positive';
+    $('#attributionPair').textContent=`${st.b.city} − ${st.a.city}`;
+    $('#attributionLeft').textContent='A 更有利';$('#attributionRight').textContent='B 更有利';
+    $('#attributionRows').innerHTML=rows.map(row=>{
+      const width=Math.abs(row.value)/max*47,left=row.value<0?50-width:50;
+      return `<div class="attribution-row"><span>${row.label}</span><span class="attribution-track" aria-hidden="true"><i data-sign="${row.value<0?'negative':'positive'}" style="left:${left}%;width:${width}%"></i></span><strong>${signedMoney(row.value)}</strong></div>`;
+    }).join('');
+    $('#attributionMethod').textContent=`两条路线使用同一组随机扰动，减少抽样噪声。对五类条件的${result.model.coalitionCount}种组合做对照，再按Shapley方法分摊中位数差值。它解释当前模型假设下的结果，不表示因果；参数也还未用真实用户数据校准。`;
+    $$('[data-attribution-metric]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.attributionMetric===key)));
+    const leader=[...rows].sort((a,b)=>Math.abs(b.value)-Math.abs(a.value))[0];
+    const difference=Math.abs(metric.delta)<1?'两条路线几乎一致，差距不到1元':metric.delta>0?`${st.b.city}比${st.a.city}多${money(metric.delta)}`:`${st.a.city}比${st.b.city}多${money(Math.abs(metric.delta))}`;
+    const leaderText=Math.abs(leader.value)<0.5?'五项因素的净贡献都接近于零':`差异主要来自${leader.label}（${signedMoney(leader.value)}）`;
+    const interpretation=key==='target'?'这反映目标支出前能留下多少现金。切换到期末资金，还可以检查这段差额是否保留下来。':'这里比较的是观察期结束时的资金中位数，和目标支出前的可用现金不是同一指标。';
+    $('#insightText').textContent=`${metric.label}：${difference}。${leaderText}。${interpretation}`;
   }
   function updateInsight(){
-    const a=st.result.a,b=st.result.b,e=st.months-1,x=intent($('#scenarioText').value),campusPoint=Math.max(0,Math.min(e,(st.goalMonth||1)-2)),valueA=direction==='campus'?a.p50[campusPoint]:a.p50[e],valueB=direction==='campus'?b.p50[campusPoint]:b.p50[e],best=valueA>=valueB?st.a:st.b,diff=Math.abs(valueA-valueB);
-    $('#insightText').textContent=direction==='campus'?`需求画像识别到「${x.goals.slice(0,2).join(' + ')}」与「${x.constraints.slice(0,2).join('、')}」。第${st.goalMonth}月旅行前，${best.city}路线的可用资金中位数高 ${money(diff)}；目标达成率为 ${Math.round(a.goal)}% / ${Math.round(b.goal)}%。差异主要来自电脑支出时点。`:`需求画像显示：${x.goals.slice(0,2).join(' + ')}，${x.risk}。在${presets[direction].label}下，${best.city}路线的期末资金中位数更高 ${money(diff)}；这只是情景推演，不代表确定结果，建议同时看P10安全线。`;
-    const routeGoal=Math.max(st.a.goalCost||0,st.b.goalCost||0,st.goal||0);$('#factorList').innerHTML=`<div class="factor"><span>方向画像</span><b>${presets[direction].label} · ${x.risk}</b></div><div class="factor"><span>路线A / B</span><b>${st.a.city} / ${st.b.city}</b></div><div class="factor"><span>${st.goalLabel||'方向目标'}</span><b>${money(routeGoal)} · 第${st.goalMonth||18}月</b></div><div class="factor"><span>负现金流路径</span><b>${a.negative} / 1,000</b></div>`;
+    const a=st.result.a,b=st.result.b,x=intent($('#scenarioText').value),routeGoal=Math.max(st.a.goalCost||0,st.b.goalCost||0,st.goal||0);
+    $('#factorList').innerHTML=`<div class="factor"><span>方向画像</span><b>${presets[direction].label} · ${x.risk}</b></div><div class="factor"><span>路线A / B</span><b>${st.a.city} / ${st.b.city}</b></div><div class="factor"><span>${st.goalLabel||'方向目标'}</span><b>${money(routeGoal)} · 第${st.goalMonth||18}月</b></div><div class="factor"><span>负现金流路径</span><b>${a.negative} / ${a.paths}</b></div>`;
+    renderAttribution();
   }
   function enhancedRun(show){
     const before={goal:st.goal,computer:st.computer,unemployed:st.unemployed},amount=customAmount($('#scenarioText').value);
+    st.direction=direction;
     q.parse();st.months=+$('#horizon').value;
     if(direction==='campus'){
       const p=presets.campus,text=$('#scenarioText').value.replace(/,/g,''),purchaseMatch=text.match(/(?:电脑|笔记本)[^\d]{0,15}(\d{4,})/),purchase=purchaseMatch?+purchaseMatch[1]:0,trip=text.match(/(?:日本旅行|日本旅游|旅行|旅游)[^\d]{0,36}(\d{4,})/),tripAmount=trip?+trip[1]:customAmount(text)||p.goal,goalMonthMatch=text.match(/第(\d{1,2})个月[^。？！]{0,15}(?:日本)?(?:旅行|旅游)/)||text.match(/(?:日本)?(?:旅行|旅游)[^。？！]{0,15}第(\d{1,2})个月/),purchaseMonthMatch=text.match(/第(\d{1,2})个月(?:后再|再)?(?:购置|买|购买)/),purchaseMonth=purchaseMonthMatch?Math.max(1,Math.min(st.months,+purchaseMonthMatch[1])):p.b.goalMonth;
@@ -100,35 +101,58 @@
     }
     else if(direction==='career'){const pa=presets.career.a,pb=presets.career.b;st.goalLabel=presets.career.goalLabel;st.goal=amount&&/旅行|旅游|目标/.test($('#scenarioText').value)?amount:presets.career.goal;st.goalMonth=presets.career.goalMonth;st.a={...clone(pa),salary:st.a.salary||pa.salary,rent:st.a.rent||pa.rent};st.b={...clone(pb),salary:st.b.salary||pb.salary,rent:st.b.rent||pb.rent}}
     else{const p=presets[direction];st.goalLabel=p.goalLabel;st.goal=amount||p.goal;st.goalMonth=p.goalMonth;st.a=clone(p.a);st.b=clone(p.b);if(direction==='education'||direction==='entrepreneur'){st.a.goalCost=0;st.b.goalCost=amount||p.goal}}
-    st.result={a:enhancedSim(st.a),b:enhancedSim(st.b)};setLabels();q.timeline();q.chart();q.insight();setLabels();if(direction==='campus'){const checkpoint=Math.max(0,Math.min(st.months-1,(st.goalMonth||1)-2));[['a','#routeAP50','#routeARange'],['b','#routeBP50','#routeBRange']].forEach(([k,valueId,rangeId])=>{const res=st.result[k];$(valueId).textContent=money(res.p50[checkpoint]);$(rangeId).textContent=`${money(res.p10[checkpoint])} — ${money(res.p90[checkpoint])}`})}updateInsight();renderIntent();window.dispatchEvent(new Event('qiancheng:updated'));
+    const policy=(q.allocationStrategies&&q.allocationStrategies[st.strategy])||{spendFactor:1,shockFactor:1};
+    const comparison=window.QianchengDecisionEngine.compare(st.a,st.b,{months:st.months,paths:1000,seed:170017,start:+$('#savings').value||0,baseIncome:+$('#baseIncome').value||0,baseExpense:+$('#baseExpense').value||0,salaryGrowth:+$('#salaryGrowth').value/100,expenseGrowth:+$('#expenseGrowth').value/100,risk:+$('#shockLevel').value,goal:st.goal,goalMonth:st.goalMonth||18,goalLabel:st.goalLabel,computer:st.computer,unemployed:st.unemployed,policy});
+    st.result={a:comparison.a,b:comparison.b};st.attribution={...comparison.attribution,model:comparison.model};setLabels();q.timeline();q.chart();q.insight();setLabels();if(direction==='campus'){const checkpoint=Math.max(0,Math.min(st.months-1,(st.goalMonth||1)-2));[['a','#routeAP50','#routeARange'],['b','#routeBP50','#routeBRange']].forEach(([k,valueId,rangeId])=>{const res=st.result[k];$(valueId).textContent=money(res.p50[checkpoint]);$(rangeId).textContent=`${money(res.p10[checkpoint])} — ${money(res.p90[checkpoint])}`})}updateInsight();renderIntent();window.dispatchEvent(new Event('qiancheng:updated'));
     $$('.node').forEach(n=>{const route=n.closest('.route')?.dataset.route,r=route&&st[route];if(r&&r.delay>6&&n.querySelector('span')?.textContent==='进入职场')n.querySelector('span').textContent=`第${r.delay}月上岗`});
     if(show&&window.toast)toast('已按当前方向重新生成 1,000 条路径');
   }
   function inject(){
     const chips=$('.chips');
     if(chips&&!$('#directionBar')){
-      chips.insertAdjacentHTML('afterend',`<div class="direction-bar" id="directionBar"><div class="direction-copy"><small>选择人生方向</small><strong id="directionTitle">校园生活</strong><span id="directionHint"></span></div><div class="direction-options">${Object.entries(presets).map(([k,v])=>`<button data-direction="${k}" class="${k===direction?'active':''}">${v.label}</button>`).join('')}</div></div><div class="intent-card" id="intentCard"><div class="intent-head"><span>SMART PROFILE</span><b>智能需求画像</b><em>本地规则解析</em></div><div id="intentTags"></div><p id="intentText"></p></div>`);
+      chips.insertAdjacentHTML('afterend',`<div class="direction-bar" id="directionBar"><div class="direction-copy"><small>选择人生方向</small><strong id="directionTitle">校园生活</strong><span id="directionHint"></span></div><div class="direction-options">${Object.entries(presets).map(([k,v])=>`<button data-direction="${k}" class="${k===direction?'active':''}">${v.label}</button>`).join('')}</div></div><div class="intent-card" id="intentCard"><div class="intent-head"><span>输入信息</span><b>你的需求小结</b><em>本地关键词识别</em></div><div id="intentTags"></div><p id="intentText"></p></div>`);
       $$('[data-direction]').forEach(btn=>btn.addEventListener('click',()=>{direction=btn.dataset.direction;$$('[data-direction]').forEach(x=>x.classList.toggle('active',x===btn));const p=presets[direction];$('#scenarioText').value=p.prompt;st.direction=direction;st.strategy=null;st.strategyManual=false;st.goalLabel=p.goalLabel;st.goal=p.goal;st.goalMonth=p.goalMonth;enhancedRun(true);$('#journey').scrollIntoView({behavior:'smooth',block:'start'})}));
       $('#scenarioText').addEventListener('input',()=>{const inferred=guessDirection($('#scenarioText').value);if(inferred&&inferred!==direction){direction=inferred;$$('[data-direction]').forEach(x=>x.classList.toggle('active',x.dataset.direction===direction));const p=presets[direction];st.direction=direction;st.strategy=null;st.strategyManual=false;st.goalLabel=p.goalLabel;st.goal=p.goal;st.goalMonth=p.goalMonth}renderIntent();clearTimeout(window.__intentTimer);window.__intentTimer=setTimeout(()=>enhancedRun(false),260)});
       $('#runSimulation').addEventListener('click',()=>setTimeout(()=>enhancedRun(false),0));
       ['savings','baseIncome','baseExpense','horizon','salaryGrowth','expenseGrowth','shockLevel'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('change',()=>setTimeout(()=>enhancedRun(false),0))});
     }
+    const factorList=$('#factorList');
+    if(factorList&&!$('#decisionAttribution')){
+      factorList.insertAdjacentHTML('afterend',`<section class="decision-attribution" id="decisionAttribution" aria-labelledby="attributionTitle"><div class="attribution-head"><div><small>路线差异 · 因素拆解</small><strong id="attributionTitle">差异来自哪些条件</strong></div><div><strong id="attributionDelta">—</strong><span id="attributionMetricLabel">等待模拟</span></div></div><div class="attribution-switch" role="group" aria-label="选择需要解释的资金结果"><button type="button" data-attribution-metric="target" aria-pressed="true">目标前资金</button><button type="button" data-attribution-metric="ending" aria-pressed="false">期末资金</button></div><div class="attribution-direction"><span id="attributionLeft">A 更有利</span><span id="attributionPair">B − A</span><span id="attributionRight">B 更有利</span></div><div class="attribution-rows" id="attributionRows" aria-live="polite"><span>生成模拟后显示因素贡献</span></div><p class="attribution-method" id="attributionMethod">路线共用同一组随机扰动，再比较五类因素组合对中位数差值的影响。结果解释模型假设，不是因果结论。</p></section>`);
+      $$('[data-attribution-metric]').forEach(button=>button.addEventListener('click',()=>renderAttribution(button.dataset.attributionMetric)));
+    }
     renderIntent();
   }
   function applyObservatoryDesign(){
-    const link=document.createElement('link');link.rel='stylesheet';link.href='brand-overhaul.css';document.head.appendChild(link);
+    const link=document.createElement('link');link.rel='stylesheet';link.href='brand-overhaul.css';document.head.appendChild(link);const attributionCss=document.createElement('link');attributionCss.rel='stylesheet';attributionCss.href='decision-attribution.css';document.head.appendChild(attributionCss);
     document.body.classList.add('observatory-design');
     const h=$('.intro h1');if(h)h.innerHTML='今天花掉这笔钱，<br><em>明年还够去旅行吗？</em>';
     const intro=$('.intro>p:not(.eyebrow)');if(intro)intro.textContent='生活费、电脑、旅行与应急储备同时摆在面前。先把选择放进未来现金流，再决定怎样安排。';
     const eyebrow=$('.intro .eyebrow');if(eyebrow)eyebrow.innerHTML='<i></i>第十七届工行杯 · 青年未来财务实验室';
-    const live=$('.live-note');if(live){live.lastChild.textContent='真实可交互网页原型 · 无需登录';live.insertAdjacentHTML('afterend','<a class="hero-explore" href="#command">进入校园情景模拟 <span>↓</span></a>')}
-    const command=$('.command');if(command){command.id='command';const title=command.querySelector('.head strong');if(title)title.textContent='说出你的选择';const status=command.querySelector('.head>span');if(status)status.textContent='本地规则模拟 · 1,000条路径';const area=$('#scenarioText');if(area)area.value=presets.campus.prompt}
+    const live=$('.live-note');if(live){live.lastChild.textContent='打开即可体验 · 无需登录';live.insertAdjacentHTML('afterend','<a class="hero-explore" href="#command">试试校园情景 <span>↓</span></a>')}
+    const flow=$('.demo-flow');if(flow){flow.setAttribute('aria-label','产品体验三步流程');const label=flow.querySelector('small');if(label)label.textContent='怎么使用'}
+    const p50Label=$('.percentiles div:nth-child(2) span');if(p50Label)p50Label.textContent='P50 中位数';
+    const riskLabel=$('.risk>span');if(riskLabel)riskLabel.textContent='A路线曾出现负余额';
+    const insightLabel=$('.insight .head small');if(insightLabel)insightLabel.textContent='路线解释';
+    const insightTitle=$('.insight .head h3');if(insightTitle)insightTitle.textContent='两条路线差在哪？';
+    const journeyLabel=$('.journey .eyebrow');if(journeyLabel)journeyLabel.textContent='未来路线';
+    const evidenceLabel=$('.evidence .eyebrow');if(evidenceLabel)evidenceLabel.textContent='调研记录';
+    const evidenceTitle=$('.evidence .title h2');if(evidenceTitle)evidenceTitle.innerHTML='本次探索性问卷，<br>共收集 70 份回答。';
+    const trustLabel=$('.trust .eyebrow');if(trustLabel)trustLabel.textContent='当前能力与边界';
+    const trustTitle=$('.trust .title h2');if(trustTitle)trustTitle.textContent='先看假设，再看结果。';
+    const trustCopy=$('.trust .title>p');if(trustCopy)trustCopy.textContent='当前版本用本地关键词规则整理输入；金额和概率由可复现模型计算，尚未接入生成式 AI。';
+    const trustFirst=$('.trust-grid article:first-child');if(trustFirst){trustFirst.querySelector('h3').textContent='关键词识别与金额计算分开';trustFirst.querySelector('p').textContent='关键词用来归纳目标和限制，金额由模拟引擎逐月计算。'}
+    const trustSecond=$('.trust-grid article:nth-child(2)');if(trustSecond){trustSecond.querySelector('h3').textContent='手动填写即可使用';trustSecond.querySelector('p').textContent='当前原型不需要连接银行账户。'}
+    const trustThird=$('.trust-grid article:nth-child(3)');if(trustThird){trustThird.querySelector('h3').textContent='参数可以查看和修改';trustThird.querySelector('p').textContent='调整假设后重新计算，固定种子下可以复现结果。'}
+    const trustFourth=$('.trust-grid article:nth-child(4)');if(trustFourth){trustFourth.querySelector('h3').textContent='由用户决定下一步';trustFourth.querySelector('p').textContent='页面展示路线差异，不替用户选择城市或人生。'}
+    const trustGrid=$('.trust-grid');if(trustGrid&&!$('.next-steps'))trustGrid.insertAdjacentHTML('afterend','<section class="next-steps" aria-labelledby="nextStepsTitle"><div><small>后续验证</small><strong id="nextStepsTitle">下一步改进</strong></div><p>扩大调研样本并记录学校、年级和地区结构；为收入、房租与突发支出参数补充可核对来源并做回测；收集自由表达的识别样例，检查关键词规则的漏识别后，再评估是否接入生成式 AI。</p></section>');
+    const command=$('.command');if(command){command.id='command';const title=command.querySelector('.head strong');if(title)title.textContent='说出你的选择';const status=command.querySelector('.head>span');if(status)status.textContent='可复现模拟 · 1,000条路径';const area=$('#scenarioText');if(area)area.value=presets.campus.prompt}
     const horizon=$('#horizon');if(horizon){horizon.value='36';horizon.dispatchEvent(new Event('change',{bubbles:true}))}
     const runButton=$('#runSimulation');if(runButton)runButton.textContent='生成我的现金流路径';
     const chips=$('.chips');if(chips){const b=chips.querySelectorAll('button');if(b[0])b[0].textContent='+ 电脑购置';if(b[1])b[1].textContent='+ 旅行预算';if(b[2])b[2].textContent='+ 应急缓冲'}
     const nav=$('.nav nav');if(nav){const names=['立即模拟','未来路线','调研证据','可信边界'];[...nav.children].forEach((a,i)=>{if(names[i])a.textContent=names[i]});if(!$('.nav-visit'))nav.insertAdjacentHTML('afterend','<a class="nav-visit" href="https://lesile1312.github.io/e-bank-qiancheng/" target="_blank" rel="noopener">线上参考版 <span>↗</span></a>')}
     const bar=$('.proof');if(bar){const items=bar.querySelectorAll('span');if(items[0])items[0].innerHTML='<b>1,000</b> 条情景路径';if(items[1])items[1].innerHTML='<b>36–60</b> 个月';if(items[2])items[2].innerHTML='<b>N=70</b> 探索样本'}
-    const evidenceText=$('#evidence .title>p');if(evidenceText)evidenceText.textContent='高校 N=70 小样本探索性调研，仍在持续进行；样本范围有限，不代表全国大学生总体。';
+    const evidenceText=$('#evidence .title>p');if(evidenceText)evidenceText.textContent='本次高校探索性调查共70人，样本范围有限，不能代表全国大学生。后续需要扩大样本并补充地区、年级等结构。';
     const footer=$('footer .shell');if(footer&&!$('.footer-visit'))footer.insertAdjacentHTML('beforeend','<a class="footer-visit" href="https://lesile1312.github.io/e-bank-qiancheng/" target="_blank" rel="noopener">打开线上参考版 <span>↗</span></a>');
   }
   applyObservatoryDesign();

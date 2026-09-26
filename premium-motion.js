@@ -40,7 +40,8 @@
   }
 
   function pressFeedback(event) {
-    const target = event.target.closest('button, .strategy-option');
+    const origin = event.target;
+    const target = origin instanceof Element ? origin.closest('button, .strategy-option') : null;
     if (!target || target.disabled) return;
     const keyboardPress = event.type === 'keydown' || event.type === 'keyup';
     const activationKey = event.key === ' ' || event.key === 'Enter';
